@@ -65,6 +65,7 @@ no-wizard-in-models | No wizard class for model directory. See the complete stru
 no-write-in-compute | Compute method calling `write`. Use `update` instead. | E8135
 odoo-addons-relative-import | Same Odoo module absolute import. You should use relative import with "." instead of "odoo.addons.%s" | W8150
 odoo-exception-warning | `odoo.exceptions.Warning` is a deprecated alias to `odoo.exceptions.UserError` use `from odoo.exceptions import UserError` | R8101
+odoo-model-filename | Model "%s" should be in "%s" | C8121
 prefer-env-translation | Better using self.env._ More info at https://github.com/odoo/odoo/pull/174844 | W8161
 print-used | Print used. Use `logger` instead. | W8116
 prohibited-method-override | Prohibited override of "%s" method. | W8107
@@ -116,6 +117,18 @@ Add to your ".pre-commit-config.yaml" configuration file the following input
 ```
 
 # Usage
+
+To check model filenames explicitly, use:
+
+```bash
+pylint --load-plugins=pylint_odoo --disable=all --enable=odoo-model-filename path/to/addon
+```
+
+The check inspects files in `models/` and reports a mismatch when the file's
+model can be determined unambiguously from `_name` or `_inherit`.
+For example, a file extending only `product.product` should be named
+`product_product.py`. Files with multiple different models or dynamic model
+declarations are skipped. The check is disabled by default.
 
     pylint --load-plugins=pylint_odoo -e odoolint path/to/test
 

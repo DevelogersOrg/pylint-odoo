@@ -31,7 +31,7 @@ def get_all_messages():
 def messages2md():
     all_msgs = get_all_messages()
     md_msgs = "Short Name | Description | Code\n--- | --- | ---"
-    for msg_code, (title, name_key, _description) in sorted(all_msgs.items(), key=lambda v: v[1][1]):
+    for msg_code, (title, name_key, *_details) in sorted(all_msgs.items(), key=lambda v: v[1][1]):
         md_msgs += f"\n{name_key} | {title} | {msg_code}"
     md_msgs += "\n"
     return md_msgs
