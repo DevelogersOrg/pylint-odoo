@@ -560,6 +560,59 @@ class Model(models.Model):
             "Only the bare `_` call is reported, neither of the two `_lt` ones nor `self.env._`",
         )
 
+    @pytest.mark.parametrize(
+        ("path", "body", "expected"),
+        [
+            (
+                "models/product.py",
+                'class Product(models.Model):\n    _inherit = "product.product"\n',
+                "product_product.py",
+            ),
+            ("models/product_product.py", 'class Product(models.Model):\n    _inherit = "product.product"\n', None),
+            (
+                "models/base.py",
+                'class Product(models.Model):\n    _inherit = "product.product"\n    _name = "custom.product"\n',
+                "custom_product.py",
+            ),
+            (
+                "models/product.py",
+                'class Product(models.Model):\n    _inherit: list = ["product.product"]\n',
+                "product_product.py",
+            ),
+            (
+                "models/sale_order.py",
+                'class Order(models.Model):\n    _name = "sale.order"\n'
+                'class Line(models.Model):\n    _name = "sale.order.line"\n',
+                None,
+            ),
+            (
+                "models/sales.py",
+                'class Order(models.Model):\n    _name = "sale.order"\n'
+                'class Line(models.Model):\n    _name = "sale.order.line"\n',
+                None,
+            ),
+            (
+                "models/product.py",
+                'class Product(models.Model):\n    _inherit = ["product.product", "mail.thread"]\n',
+                None,
+            ),
+            ("models/product.py", "class Product(models.Model):\n    _inherit = MODEL\n", None),
+            ("models/product.py", 'class Product:\n    _name = "product.product"\n', None),
+            ("models/__init__.py", 'class Product(models.Model):\n    _inherit = "product.product"\n', None),
+            ("wizard/product.py", 'class Product(models.TransientModel):\n    _name = "product.wizard"\n', None),
+        ],
+    )
+    def test_odoo_model_filename(self, tmp_path, path, body, expected):
+        model_file = tmp_path / path
+        model_file.parent.mkdir()
+        model_file.write_text("from odoo import models\n\n" + body, encoding="utf-8")
+        result = self.run_pylint([str(model_file)], ["--disable=all", "--enable=odoo-model-filename"])
+        if expected is None:
+            assert not result.linter.stats.by_msg
+        else:
+            assert result.linter.stats.by_msg == {"odoo-model-filename": 1}
+            assert f'should be in "{expected}"' in result.out.getvalue()
+
     @pytest.mark.parametrize("expected_error_name", EXPECTED_ERRORS)
     def test_150_check_only_enabled_one_check(self, expected_error_name):
         """Checking -d all -e ONLY-ONE-CHECK"""

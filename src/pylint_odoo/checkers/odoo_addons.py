@@ -185,6 +185,12 @@ ODOO_MSGS = {
         "manifest-summary-multiline",
         CHECK_DESCRIPTION,
     ),
+    "C8121": (
+        'Model "%s" should be in "%s"',
+        "odoo-model-filename",
+        "Name the Python file after its main Odoo model, replacing dots with underscores.",
+        {"default_enabled": False},
+    ),
     "E8101": (
         "The author key in the manifest file must be a string (with comma separated values)",
         "manifest-author-string",
@@ -839,6 +845,50 @@ class OdooAddons(OdooBaseChecker, BaseChecker):
     def leave_module(self, node):
         """Clear variables"""
         self._from_imports = {}
+        if self.linter.is_message_enabled("odoo-model-filename"):
+            self._check_odoo_model_filename(node)
+
+    def _check_odoo_model_filename(self, node):
+        if not node.file:
+            return
+        directory, filename = os.path.split(node.file)
+        if os.path.basename(directory) != "models" or filename == "__init__.py":
+            return
+
+        models = {}
+        for child in node.body:
+            if not isinstance(child, nodes.ClassDef) or not self.get_odoo_models_class(child):
+                continue
+            if "_name" not in child.locals and "_inherit" not in child.locals:
+                continue
+            model_name = self._get_literal_model_name(child)
+            if model_name is None:
+                return
+            models[model_name] = child
+
+        # A related model can share the main model's file. With multiple
+        # different models, the main one cannot be inferred reliably.
+        if len(models) == 1:
+            model_name, class_node = next(iter(models.items()))
+            expected = model_name.replace(".", "_") + ".py"
+            if filename != expected:
+                self.add_message("odoo-model-filename", node=class_node, args=(model_name, expected))
+
+    @staticmethod
+    def _get_literal_model_name(class_node):
+        attribute = "_name" if "_name" in class_node.locals else "_inherit"
+        assignments = class_node.locals[attribute]
+        if len(assignments) != 1:
+            return None
+        assignment = assignments[0].parent
+        if not isinstance(assignment, (nodes.Assign, nodes.AnnAssign)) or assignment.parent is not class_node:
+            return None
+        value = assignment.value
+        if attribute == "_inherit" and isinstance(value, (nodes.List, nodes.Tuple)) and len(value.elts) == 1:
+            value = value.elts[0]
+        if isinstance(value, nodes.Const) and isinstance(value.value, str) and value.value:
+            return value.value
+        return None
 
     def _get_max_valid_odoo_versions(self):
         odoo_versions = [misc.version_parse(odoo_version) for odoo_version in self.linter.config.valid_odoo_versions]
